@@ -3,6 +3,8 @@ import subprocess
 import asyncio
 import os
 import time
+from flask import Flask
+import threading
 
 def auto_install(package_name):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package_name])
@@ -17,7 +19,22 @@ except ImportError:
     from telethon.tl.functions.channels import GetParticipantsRequest
     from telethon.tl.types import ChannelParticipantsAdmins, ChannelParticipantsRecent
 
-# 1. بيانات Telegram
+# 1. إعداد خادم الويب الوهمي ليبقى البوت شغالاً 24/7 على Render
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot and Scanner are running 24/7!"
+
+def run_web():
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
+
+# تشغيل الويب في خلفية الكود
+t = threading.Thread(target=run_web)
+t.start()
+
+# 2. بيانات Telegram
 API_ID = 24400989
 API_HASH = '8a682c7664872355902f07d127b494d9'
 BOT_TOKEN = '8605129862:AAGcXah1pArBp3ibUb1gaiZCk5tU3J7OC8A'
@@ -61,7 +78,6 @@ async def get_all_channel_admins_and_owner(channel_entity):
     admins_list = []
     owner_info = "👑 **المالك الأساسي:** مخفي أو محمي بواسطة إعدادات القناة"
     
-    # المحاولة الأولى: الطريقة القياسية
     try:
         participants = await user_client(GetParticipantsRequest(
             channel=channel_entity,
@@ -94,7 +110,6 @@ async def get_all_channel_admins_and_owner(channel_entity):
     except Exception:
         pass
 
-    # المحاولة الخارقة الثانية: تحليل المنشورات والأداة الذكية لاستخراج هوية من ينشر في القناة
     try:
         async for message in user_client.iter_messages(channel_entity, limit=50):
             if message.sender_id:
@@ -271,27 +286,10 @@ async def execute_scan_violations(event, user_id):
     except Exception as e:
         await event.respond(f"❌ حدث خطأ أثناء فحص المخالفات:\n{str(e)}")
 
-@user_client.on(events.ChatAction)
-async def track_member_joins_and_leaves(event):
-    try:
-        user = await event.get_user()
-        if not user:
-            return
-        name = f"{user.first_name or ''} {user.last_name or ''}".strip()
-        username = f"@{user.username}" if user.username else "بدون معرف"
-        user_id = user.id
-
-        if event.user_joined or event.user_added:
-            print(f"📥 [انضمام عضو]: {name} ({username}) [آيدي: {user_id}]")
-        elif event.user_left or event.user_kicked:
-            print(f"📤 [مغادرة عضو]: {name} ({username}) [آيدي: {user_id}]")
-    except Exception as e:
-        pass
-
 async def main():
     await user_client.start()
     await bot_client.start(bot_token=BOT_TOKEN)
-    print("🔥 تم تطبيق الكود الخارق بنجاح وتجاوز الأخطاء البرمجية!")
+    print("🔥 تم تطبيق الكود الخارق مع دعم الاستضافة الدائمة 24/7 بنجاح!")
     
     await asyncio.gather(
         user_client.run_until_disconnected(),
